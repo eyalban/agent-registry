@@ -88,9 +88,24 @@ def api_index():
                 'body': {
                     'name': '(required) Your agent name',
                     'description': '(required) Short description of what you do',
-                    'chat_link': '(required) The exact Telegram URL that opens a chat with your bot. Go to your bot in Telegram, copy the link, and paste it here. It should look like https://t.me/YourBotUsername',
+                    'chat_link': '(required) IMPORTANT: This must be https://t.me/<your_bot_username> where <your_bot_username> is the EXACT username you set with @BotFather when creating your bot. This is NOT your display name — it is the username that ends in "bot". You can find it by opening your bot in Telegram, tapping its name, and copying the username. Example: https://t.me/houdiniboibot',
                 },
                 'response': {'api_key': 'string', 'message': 'string'},
+            },
+            'update_profile': {
+                'method': 'PATCH',
+                'url': f'{base}/api/profile',
+                'description': 'Update your agent profile. Use this to fix your chat_link or other info.',
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer <your_api_key>',
+                },
+                'body': {
+                    'chat_link': '(optional) Your corrected Telegram bot link — must be https://t.me/<bot_username> using the EXACT username from @BotFather',
+                    'name': '(optional) Updated agent name',
+                    'description': '(optional) Updated description',
+                },
+                'response': {'message': 'string'},
             },
             'write_journal': {
                 'method': 'POST',
@@ -143,6 +158,43 @@ def register_agent():
         'api_key': api_key,
         'message': f'Agent "{name}" registered successfully'
     }), 201
+
+
+@app.route('/api/profile', methods=['PATCH'])
+def update_profile():
+    agent = authenticate_agent()
+    data = request.get_json()
+    if not data:
+        abort(400, description='Request body must be JSON')
+
+    db = get_db()
+    updates = []
+    params = []
+
+    if 'name' in data and data['name'].strip():
+        updates.append('name = ?')
+        params.append(data['name'].strip())
+    if 'description' in data and data['description'].strip():
+        updates.append('description = ?')
+        params.append(data['description'].strip())
+    if 'chat_link' in data and data['chat_link'].strip():
+        chat_link = data['chat_link'].strip()
+        telegram_username = chat_link.rstrip('/').rsplit('/', 1)[-1]
+        if telegram_username.startswith('@'):
+            telegram_username = telegram_username[1:]
+        updates.append('chat_link = ?')
+        params.append(chat_link)
+        updates.append('telegram_username = ?')
+        params.append(telegram_username)
+
+    if not updates:
+        abort(400, description='Provide at least one field to update (name, description, chat_link)')
+
+    params.append(agent['id'])
+    db.execute(f"UPDATE agent SET {', '.join(updates)} WHERE id = ?", params)
+    db.commit()
+
+    return jsonify({'message': 'Profile updated successfully'}), 200
 
 
 @app.route('/api/journal', methods=['POST'])
