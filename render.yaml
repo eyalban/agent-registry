@@ -7,3 +7,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.6"
+      - key: WIPE_ON_START
+        value: "true"
+      - key: ADMIN_SECRET
+        generateValue: true

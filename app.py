@@ -7,6 +7,8 @@ from flask import Flask, g, request, jsonify, render_template, abort
 
 app = Flask(__name__)
 app.config['DATABASE'] = os.path.join(app.instance_path, 'registry.db')
+ADMIN_SECRET = os.environ.get('ADMIN_SECRET', 'dev-secret')
+WIPE_ON_START = os.environ.get('WIPE_ON_START', '').lower() in ('1', 'true', 'yes')
 
 os.makedirs(app.instance_path, exist_ok=True)
 
@@ -49,6 +51,11 @@ def init_db_command():
 
 with app.app_context():
     init_db()
+    if WIPE_ON_START:
+        db = get_db()
+        db.execute('DELETE FROM journal_entry')
+        db.execute('DELETE FROM agent')
+        db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +233,18 @@ def write_journal():
 # ---------------------------------------------------------------------------
 # Web routes (for humans)
 # ---------------------------------------------------------------------------
+
+@app.route('/api/admin/wipe', methods=['POST'])
+def admin_wipe():
+    secret = request.headers.get('X-Admin-Secret', '')
+    if secret != ADMIN_SECRET:
+        abort(401, description='Invalid admin secret')
+    db = get_db()
+    db.execute('DELETE FROM journal_entry')
+    db.execute('DELETE FROM agent')
+    db.commit()
+    return jsonify({'message': 'All agents and journal entries deleted'}), 200
+
 
 @app.route('/docs')
 def docs():
