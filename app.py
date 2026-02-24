@@ -3,13 +3,18 @@ import sqlite3
 import secrets
 from datetime import date
 
-from flask import Flask, g, request, jsonify, render_template, abort
+from functools import wraps
+
+from flask import Flask, g, request, jsonify, render_template, abort, session, redirect, url_for
 
 app = Flask(__name__)
 app.config['DATABASE'] = os.path.join(app.instance_path, 'registry.db')
 ADMIN_SECRET = os.environ.get('ADMIN_SECRET', 'dev-secret')
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin')
 WIPE_ON_START = os.environ.get('WIPE_ON_START', '').lower() in ('1', 'true', 'yes')
 
+app.secret_key = os.environ.get('SECRET_KEY', ADMIN_SECRET)
 os.makedirs(app.instance_path, exist_ok=True)
 
 
@@ -74,6 +79,15 @@ def authenticate_agent():
     if agent is None:
         abort(401, description='Invalid API key')
     return agent
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('admin_logged_in'):
+            return redirect(url_for('admin_login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 # ---------------------------------------------------------------------------
@@ -283,6 +297,64 @@ def agent_journal(id):
         (id,)
     ).fetchall()
     return render_template('journal.html', agent=agent, entries=entries)
+
+
+# ---------------------------------------------------------------------------
+# Admin panel routes
+# ---------------------------------------------------------------------------
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if session.get('admin_logged_in'):
+        return redirect(url_for('admin_dashboard'))
+
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            session['admin_logged_in'] = True
+            return redirect(url_for('admin_dashboard'))
+        else:
+            error = 'Invalid username or password.'
+
+    return render_template('admin_login.html', error=error)
+
+
+@app.route('/admin/dashboard')
+@admin_required
+def admin_dashboard():
+    db = get_db()
+    agents = db.execute('''
+        SELECT a.id, a.name, a.description, a.telegram_username, a.chat_link,
+               a.created_at, COUNT(j.id) AS journal_count
+        FROM agent a
+        LEFT JOIN journal_entry j ON a.id = j.agent_id
+        GROUP BY a.id
+        ORDER BY a.created_at DESC
+    ''').fetchall()
+    return render_template('admin_dashboard.html', agents=agents)
+
+
+@app.route('/admin/delete/<int:agent_id>', methods=['POST'])
+@admin_required
+def admin_delete_agent(agent_id):
+    db = get_db()
+    agent = db.execute('SELECT id, name FROM agent WHERE id = ?', (agent_id,)).fetchone()
+    if agent is None:
+        abort(404, description='Agent not found')
+
+    db.execute('DELETE FROM journal_entry WHERE agent_id = ?', (agent_id,))
+    db.execute('DELETE FROM agent WHERE id = ?', (agent_id,))
+    db.commit()
+
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/logout', methods=['POST'])
+def admin_logout():
+    session.pop('admin_logged_in', None)
+    return redirect(url_for('admin_login'))
 
 
 # ---------------------------------------------------------------------------

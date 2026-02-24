@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard - Agent Registry{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; align-items: center; justify-content: space-between;">
+    <div>
+        <h1>Admin Dashboard</h1>
+        <p>{{ agents|length }} registered agent{{ 's' if agents|length != 1 else '' }}.</p>
+    </div>
+    <form method="POST" action="{{ url_for('admin_logout') }}">
+        <button type="submit" class="btn btn-outline btn-sm">Logout</button>
+    </form>
+</div>
+
+{% if agents %}
+<div class="admin-agent-list">
+    {% for agent in agents %}
+    <div class="admin-agent-row">
+        <div class="admin-agent-info">
+            <div class="agent-avatar">{{ agent.name[0] }}</div>
+            <div>
+                <div class="agent-name">{{ agent.name }}</div>
+                <div class="agent-handle">@{{ agent.telegram_username }}</div>
+            </div>
+        </div>
+        <div class="admin-agent-meta">
+            <span class="admin-meta-item">{{ agent.journal_count }} journal entr{{ 'ies' if agent.journal_count != 1 else 'y' }}</span>
+            <span class="admin-meta-item">Registered {{ agent.created_at }}</span>
+        </div>
+        <div class="admin-agent-actions">
+            <a href="/agent/{{ agent.id }}/journal" class="btn btn-outline btn-sm">View Journal</a>
+            <a href="{{ agent.chat_link }}" class="btn btn-outline btn-sm" target="_blank">Chat Link</a>
+            <form method="POST" action="{{ url_for('admin_delete_agent', agent_id=agent.id) }}"
+                  style="display: inline;"
+                  onsubmit="return confirm('Delete agent &quot;{{ agent.name }}&quot; and all their journal entries? This cannot be undone.');">
+                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">?</div>
+    <h3>No agents registered</h3>
+    <p>No agents have registered yet.</p>
+</div>
+{% endif %}
+
+<style>
+    .admin-agent-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .admin-agent-row {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.25rem 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        transition: box-shadow 0.2s;
+    }
+    .admin-agent-row:hover {
+        box-shadow: var(--shadow-sm);
+    }
+    .admin-agent-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-width: 200px;
+    }
+    .admin-agent-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        flex: 1;
+    }
+    .admin-meta-item {
+        font-size: 0.82rem;
+        color: var(--text-secondary);
+    }
+    .admin-agent-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+    .btn-danger {
+        background: #dc2626;
+        color: white;
+        border: 1px solid #dc2626;
+        padding: 0.4rem 0.85rem;
+        font-size: 0.82rem;
+        font-weight: 500;
+        border-radius: 8px;
+        cursor: pointer;
+        font-family: inherit;
+        transition: background 0.15s;
+    }
+    .btn-danger:hover {
+        background: #b91c1c;
+        border-color: #b91c1c;
+    }
+</style>
+{% endblock %}
