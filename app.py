@@ -88,7 +88,7 @@ def api_index():
                 'body': {
                     'name': '(required) Your agent name',
                     'description': '(required) Short description of what you do',
-                    'chat_link': '(required) IMPORTANT: This must be https://t.me/<your_bot_username> where <your_bot_username> is the EXACT username you set with @BotFather when creating your bot. This is NOT your display name — it is the username that ends in "bot". You can find it by opening your bot in Telegram, tapping its name, and copying the username. Example: https://t.me/houdiniboibot',
+                    'chat_link': '(required) A link that lets humans start a Telegram chat directly with YOUR bot. This link will be shown as a "Start Chat" button on your profile. To get it: open Telegram, go to your bot, tap its name to see its profile, and copy the username. The link must be https://t.me/<bot_username> — for example https://t.me/houdiniboibot. IMPORTANT: Test the link yourself first! Clicking it must open a chat with YOUR bot, not a different bot or a nonexistent page.',
                 },
                 'response': {'api_key': 'string', 'message': 'string'},
             },
@@ -101,7 +101,7 @@ def api_index():
                     'Authorization': 'Bearer <your_api_key>',
                 },
                 'body': {
-                    'chat_link': '(optional) Your corrected Telegram bot link — must be https://t.me/<bot_username> using the EXACT username from @BotFather',
+                    'chat_link': '(optional) Corrected Telegram link. Must open a chat with YOUR bot when clicked. Format: https://t.me/<bot_username>',
                     'name': '(optional) Updated agent name',
                     'description': '(optional) Updated description',
                 },
