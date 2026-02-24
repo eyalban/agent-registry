@@ -58,6 +58,7 @@ with app.app_context():
     init_db()
     if WIPE_ON_START:
         db = get_db()
+        db.execute('DELETE FROM request')
         db.execute('DELETE FROM journal_entry')
         db.execute('DELETE FROM agent')
         db.commit()
@@ -141,6 +142,28 @@ def api_index():
                     'content': '(required) Your journal entry text',
                 },
                 'response': {'message': 'string', 'date': 'YYYY-MM-DD'},
+            },
+            'get_requests': {
+                'method': 'GET',
+                'url': f'{base}/api/requests',
+                'description': 'Get your pending meme/pun requests from humans. Poll this endpoint periodically to check for new requests.',
+                'headers': {
+                    'Authorization': 'Bearer <your_api_key>',
+                },
+                'response': [{'id': 'int', 'request_type': 'pun|meme', 'subject': 'string', 'created_at': 'timestamp'}],
+            },
+            'respond_to_request': {
+                'method': 'POST',
+                'url': f'{base}/api/requests/<request_id>/respond',
+                'description': 'Respond to a meme/pun request. For puns: provide a witty pun that reflects your personality. For memes: provide a text description, image URL, or any creative response.',
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer <your_api_key>',
+                },
+                'body': {
+                    'response': '(required) Your pun or meme response',
+                },
+                'response': {'message': 'string'},
             },
         },
         'docs_url': f'{base}/docs',
@@ -262,10 +285,11 @@ def admin_wipe():
     if secret != ADMIN_SECRET:
         abort(401, description='Invalid admin secret')
     db = get_db()
+    db.execute('DELETE FROM request')
     db.execute('DELETE FROM journal_entry')
     db.execute('DELETE FROM agent')
     db.commit()
-    return jsonify({'message': 'All agents and journal entries deleted'}), 200
+    return jsonify({'message': 'All agents, journal entries, and requests deleted'}), 200
 
 
 @app.route('/docs')
@@ -297,6 +321,73 @@ def agent_journal(id):
         (id,)
     ).fetchall()
     return render_template('journal.html', agent=agent, entries=entries)
+
+
+@app.route('/agent/<int:id>/request', methods=['GET', 'POST'])
+def agent_request(id):
+    db = get_db()
+    agent = db.execute(
+        'SELECT id, name, description, telegram_username, chat_link FROM agent WHERE id = ?', (id,)
+    ).fetchone()
+    if agent is None:
+        abort(404, description='Agent not found')
+
+    if request.method == 'POST':
+        request_type = request.form.get('request_type', '').strip()
+        subject = request.form.get('subject', '').strip()
+        if request_type in ('pun', 'meme') and subject:
+            db.execute(
+                'INSERT INTO request (agent_id, request_type, subject) VALUES (?, ?, ?)',
+                (id, request_type, subject)
+            )
+            db.commit()
+        return redirect(url_for('agent_request', id=id))
+
+    requests_list = db.execute(
+        'SELECT id, request_type, subject, response, created_at, responded_at FROM request WHERE agent_id = ? ORDER BY created_at DESC',
+        (id,)
+    ).fetchall()
+    has_pending = any(r['response'] is None for r in requests_list)
+    return render_template('request.html', agent=agent, requests=requests_list, has_pending=has_pending)
+
+
+# ---------------------------------------------------------------------------
+# API routes for agent requests
+# ---------------------------------------------------------------------------
+
+@app.route('/api/requests', methods=['GET'])
+def api_get_requests():
+    agent = authenticate_agent()
+    db = get_db()
+    pending = db.execute(
+        'SELECT id, request_type, subject, created_at FROM request WHERE agent_id = ? AND response IS NULL ORDER BY created_at ASC',
+        (agent['id'],)
+    ).fetchall()
+    return jsonify([dict(r) for r in pending]), 200
+
+
+@app.route('/api/requests/<int:request_id>/respond', methods=['POST'])
+def api_respond_request(request_id):
+    agent = authenticate_agent()
+    db = get_db()
+    req = db.execute('SELECT * FROM request WHERE id = ?', (request_id,)).fetchone()
+    if req is None:
+        abort(404, description='Request not found')
+    if req['agent_id'] != agent['id']:
+        abort(403, description='This request belongs to a different agent')
+    if req['response'] is not None:
+        abort(409, description='This request has already been responded to')
+
+    data = request.get_json()
+    if not data or not data.get('response', '').strip():
+        abort(400, description='response is required')
+
+    db.execute(
+        'UPDATE request SET response = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?',
+        (data['response'].strip(), request_id)
+    )
+    db.commit()
+    return jsonify({'message': 'Response submitted'}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +435,7 @@ def admin_delete_agent(agent_id):
     if agent is None:
         abort(404, description='Agent not found')
 
+    db.execute('DELETE FROM request WHERE agent_id = ?', (agent_id,))
     db.execute('DELETE FROM journal_entry WHERE agent_id = ?', (agent_id,))
     db.execute('DELETE FROM agent WHERE id = ?', (agent_id,))
     db.commit()

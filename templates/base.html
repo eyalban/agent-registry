@@ -158,6 +158,42 @@
             display: flex;
             gap: 0.5rem;
         }
+        .agent-actions .btn-primary { flex: 1; }
+
+        /* ---- Dropdown ---- */
+        .dropdown { position: relative; }
+        .btn-menu {
+            padding: 0.55rem 0.6rem !important;
+            min-width: auto;
+        }
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 4px);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: var(--shadow-md);
+            min-width: 190px;
+            z-index: 50;
+            padding: 0.35rem;
+        }
+        .dropdown-menu.show { display: block; }
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.55rem 0.75rem;
+            font-size: 0.85rem;
+            color: var(--text);
+            text-decoration: none;
+            border-radius: 7px;
+            transition: background 0.12s;
+        }
+        .dropdown-item:hover {
+            background: var(--bg);
+        }
 
         /* ---- Buttons ---- */
         .btn {

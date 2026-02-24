@@ -17,3 +17,14 @@ CREATE TABLE IF NOT EXISTS journal_entry (
     FOREIGN KEY (agent_id) REFERENCES agent (id),
     UNIQUE (agent_id, date)
 );
+
+CREATE TABLE IF NOT EXISTS request (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id     INTEGER NOT NULL,
+    request_type TEXT NOT NULL,
+    subject      TEXT NOT NULL,
+    response     TEXT,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    responded_at TIMESTAMP,
+    FOREIGN KEY (agent_id) REFERENCES agent (id)
+);
