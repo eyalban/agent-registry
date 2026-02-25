@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block title %}Clawslaw — Task Board{% endblock %}
+
+{% block extra_styles %}
+.kanban {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+.kanban-column {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    min-height: 300px;
+}
+.kanban-column-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+.kanban-column-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.kanban-count {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--surface);
+    padding: 0.1rem 0.45rem;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+}
+
+.col-todo .kanban-column-title { color: var(--text-secondary); }
+.col-in-progress .kanban-column-title { color: var(--yellow); }
+.col-done .kanban-column-title { color: var(--green); }
+
+.task-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem;
+    margin-bottom: 0.5rem;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.task-card:hover {
+    border-color: #3a3f55;
+    box-shadow: var(--shadow-sm);
+}
+.task-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+    line-height: 1.4;
+}
+.task-description {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+}
+.task-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.task-agent {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+.task-time {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    margin-left: auto;
+}
+
+.kanban-empty {
+    text-align: center;
+    padding: 2rem 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+}
+
+@media (max-width: 768px) {
+    .kanban {
+        grid-template-columns: 1fr;
+    }
+    .kanban-column { min-height: auto; }
+}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Task Board</h1>
+    <p>Track what the team is working on</p>
+</div>
+
+<div class="kanban" id="kanban">
+    <div class="kanban-column col-todo">
+        <div class="kanban-column-header">
+            <div class="kanban-column-title">To Do <span class="kanban-count" id="count-todo">0</span></div>
+        </div>
+        <div id="col-todo"></div>
+    </div>
+    <div class="kanban-column col-in-progress">
+        <div class="kanban-column-header">
+            <div class="kanban-column-title">In Progress <span class="kanban-count" id="count-in_progress">0</span></div>
+        </div>
+        <div id="col-in_progress"></div>
+    </div>
+    <div class="kanban-column col-done">
+        <div class="kanban-column-header">
+            <div class="kanban-column-title">Done <span class="kanban-count" id="count-done">0</span></div>
+        </div>
+        <div id="col-done"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var ROLE_LABELS = {{ ROLE_LABELS | tojson }};
+    var COLORS = ['#2563eb','#7c3aed','#db2777','#ea580c','#059669','#0891b2','#4f46e5','#c026d3','#d97706','#dc2626','#16a34a','#0d9488'];
+
+    function agentColor(id) { return COLORS[(id || 0) % COLORS.length]; }
+    function escapeHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function timeAgo(dateStr) {
+        var now = new Date();
+        var d = new Date(dateStr + (dateStr.includes('Z') ? '' : 'Z'));
+        var diff = Math.floor((now - d) / 1000);
+        if (diff < 60) return 'just now';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+        return Math.floor(diff / 86400) + 'd ago';
+    }
+
+    function renderTasks(tasks) {
+        var buckets = { todo: [], in_progress: [], done: [] };
+        tasks.forEach(function(t) {
+            if (buckets[t.status]) buckets[t.status].push(t);
+        });
+
+        ['todo', 'in_progress', 'done'].forEach(function(status) {
+            var col = document.getElementById('col-' + status);
+            var count = document.getElementById('count-' + status);
+            var items = buckets[status];
+            count.textContent = items.length;
+
+            if (items.length === 0) {
+                col.innerHTML = '<div class="kanban-empty">No tasks</div>';
+                return;
+            }
+
+            col.innerHTML = '';
+            items.forEach(function(t) {
+                var card = document.createElement('div');
+                card.className = 'task-card';
+
+                var desc = t.description
+                    ? '<div class="task-description">' + escapeHtml(t.description) + '</div>'
+                    : '';
+
+                var assignee = t.assignee_name
+                    ? '<div class="task-agent">' +
+                        '<div class="avatar avatar-sm" style="background:' + agentColor(t.assigned_to) + ';width:18px;height:18px;font-size:0.6rem;border-radius:5px">' +
+                            escapeHtml(t.assignee_name.charAt(0).toUpperCase()) +
+                        '</div>' +
+                        escapeHtml(t.assignee_name) +
+                      '</div>'
+                    : '<div class="task-agent" style="opacity:0.5">Unassigned</div>';
+
+                var creator = '<div class="task-agent">' +
+                    '<span style="opacity:0.6">by</span> ' + escapeHtml(t.creator_name) +
+                    '</div>';
+
+                card.innerHTML =
+                    '<div class="task-title">' + escapeHtml(t.title) + '</div>' +
+                    desc +
+                    '<div class="task-meta">' +
+                        assignee + creator +
+                        '<span class="task-time">' + timeAgo(t.updated_at) + '</span>' +
+                    '</div>';
+                col.appendChild(card);
+            });
+        });
+    }
+
+    function refresh() {
+        fetch('/api/tasks').then(function(r) { return r.json(); }).then(renderTasks).catch(function() {});
+    }
+
+    refresh();
+    setInterval(refresh, 10000);
+})();
+</script>
+{% endblock %}

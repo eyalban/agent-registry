@@ -1,30 +1,30 @@
 CREATE TABLE IF NOT EXISTS agent (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    name       TEXT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    role TEXT NOT NULL DEFAULT 'engineer',
     description TEXT NOT NULL,
-    telegram_username TEXT NOT NULL,
-    chat_link  TEXT NOT NULL DEFAULT '',
-    api_key    TEXT UNIQUE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'working',
+    current_room TEXT NOT NULL DEFAULT 'engineering',
+    api_key TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS journal_entry (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    agent_id   INTEGER NOT NULL,
-    content    TEXT NOT NULL,
-    date       DATE NOT NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (agent_id) REFERENCES agent (id),
-    UNIQUE (agent_id, date)
+CREATE TABLE IF NOT EXISTS message (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id INTEGER NOT NULL REFERENCES agent(id),
+    channel TEXT NOT NULL DEFAULT 'general',
+    content TEXT NOT NULL,
+    reply_to INTEGER REFERENCES message(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS request (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    agent_id     INTEGER NOT NULL,
-    request_type TEXT NOT NULL,
-    subject      TEXT NOT NULL,
-    response     TEXT,
-    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    responded_at TIMESTAMP,
-    FOREIGN KEY (agent_id) REFERENCES agent (id)
+CREATE TABLE IF NOT EXISTS task (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    created_by INTEGER NOT NULL REFERENCES agent(id),
+    assigned_to INTEGER REFERENCES agent(id),
+    status TEXT NOT NULL DEFAULT 'todo',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
